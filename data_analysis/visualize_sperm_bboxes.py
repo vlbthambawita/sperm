@@ -161,35 +161,6 @@ def draw_boxes_on_image(
         color = (0, 255, 0)  # green
         cv2.rectangle(image, (x1, y1), (x2, y2), color, thickness=line_thickness)
 
-        label = None
-        if 0 <= class_id < len(class_names):
-            label = class_names[class_id]
-        elif class_names:
-            label = f"class_{class_id}"
-
-        if label:
-            font = cv2.FONT_HERSHEY_SIMPLEX
-            font_scale = 0.5
-            font_thickness = 1
-            (tw, th), baseline = cv2.getTextSize(label, font, font_scale, font_thickness)
-            # Ensure the label box stays within the image
-            text_x1 = max(0, x1)
-            text_y1 = max(th + baseline, y1)
-            text_x2 = min(image.shape[1] - 1, text_x1 + tw)
-            text_y2 = text_y1 + th + baseline
-
-            cv2.rectangle(image, (text_x1, text_y1 - th - baseline), (text_x2, text_y2), color, thickness=-1)
-            cv2.putText(
-                image,
-                label,
-                (text_x1, text_y1 - baseline),
-                font,
-                font_scale,
-                (0, 0, 0),
-                thickness=font_thickness,
-                lineType=cv2.LINE_AA,
-            )
-
 
 def collect_images(images_dir: Path, max_images: Optional[int], random_order: bool) -> List[Path]:
     image_paths = sorted(

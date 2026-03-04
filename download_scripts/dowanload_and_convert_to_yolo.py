@@ -307,12 +307,16 @@ def process_records(records: list, split_name: str, cfg: dict, class_map: dict):
     def _process_one(record):
         nonlocal downloaded, skipped, failed
 
-        row_id = record.get("data_row", {}).get("id", "unknown")
-        img_url = record.get("data_row", {}).get("row_data") or record.get("Labeled Data", "")
+        data_row = record.get("data_row", {})
+        row_id = data_row.get("id", "unknown")
+        global_key = data_row.get("global_key") or data_row.get("external_id")
+        basename = global_key or row_id
+
+        img_url = data_row.get("row_data") or record.get("Labeled Data", "")
         ext = Path(img_url.split("?")[0]).suffix or ".jpg"
-        img_name = f"{row_id}{ext}"
+        img_name = f"{basename}{ext}"
         img_path = img_base / img_name
-        lbl_path = lbl_base / f"{row_id}.txt"
+        lbl_path = lbl_base / f"{basename}.txt"
 
         anno_lines = extract_annotations(record, class_map)
 
