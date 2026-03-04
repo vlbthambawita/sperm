@@ -1,0 +1,5 @@
+metric,mean_A,mean_B,mean_diff_B_minus_A,std_diff,CI_lower,CI_upper,t_stat,t_p_value,cohen_d,wilcoxon_stat,wilcoxon_p
+mAP50,0.0,0.0,0.0,0.0,0.0,0.0,,,,0.0,1.0
+mAP50_95,0.0,0.0,0.0,0.0,0.0,0.0,,,,0.0,1.0
+precision,0.0,0.0,0.0,0.0,0.0,0.0,,,,0.0,1.0
+recall,0.0,0.0,0.0,0.0,0.0,0.0,,,,0.0,1.0

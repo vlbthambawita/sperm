@@ -6,6 +6,9 @@ config.json
 secrets.json
 **/config.json
 **/secrets.json
+yolo/*.pt
+yolo/cv_results/
+yolo/runs/
 
 # API Keys and sensitive data
 run.sh
