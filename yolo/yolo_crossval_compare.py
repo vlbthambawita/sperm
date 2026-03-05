@@ -39,7 +39,7 @@ N_FOLDS       = 5
 NUM_CLASSES   = 1                        # number of object classes
 CLASS_NAMES   = ["sperm"]               # list of class names
 IMG_SIZE      = 640                      # YOLO input resolution
-EPOCHS        = 50                       # training epochs per fold
+EPOCHS        = 1                       # training epochs per fold
 BATCH_SIZE    = 16
 YOLO_MODEL    = "yolo26n.pt"            # base weights (downloads auto)
                                          # change to yolov8n.pt / yolo11s.pt etc.
@@ -124,24 +124,62 @@ def image_paths_for_stems(stems, images_dir):
     return paths
 
 
+def _find_col(df, patterns, exclude=None):
+    """Find column by case-insensitive partial match, optionally excluding columns containing exclude."""
+    for c in df.columns:
+        c_clean = str(c).strip().lower()
+        if exclude and exclude.lower() in c_clean:
+            continue
+        for p in patterns:
+            if p.lower() in c_clean:
+                return c
+    return None
+
+
+def _locate_results_csv(results_dir):
+    """Locate results.csv - check primary path and common Ultralytics layout variants."""
+    base = Path(results_dir)
+    candidates = [
+        base / "results.csv",
+        base / "train" / "results.csv",
+    ]
+    for p in candidates:
+        if p.exists():
+            return p
+    # Fallback: recursive search under results_dir
+    for p in base.rglob("results.csv"):
+        return p
+    return None
+
+
 def extract_metrics(results_dir):
     """Parse best metrics from ultralytics results.csv"""
-    csv_path = Path(results_dir) / "results.csv"
-    if not csv_path.exists():
+    csv_path = _locate_results_csv(results_dir)
+    if csv_path is None:
+        print(f"  ⚠  results.csv not found under {results_dir}")
         return {}
-    df = pd.read_csv(csv_path)
+    try:
+        df = pd.read_csv(csv_path)
+    except Exception as e:
+        print(f"  ⚠  Failed to read {csv_path}: {e}")
+        return {}
     df.columns = df.columns.str.strip()
-    # take the best epoch row (highest mAP50)
-    col_map = {c: c for c in df.columns}
-    map50_col   = next((c for c in df.columns if "mAP50"  in c and "95" not in c), None)
-    map5095_col = next((c for c in df.columns if "mAP50-95" in c or "mAP50.95" in c), None)
-    prec_col    = next((c for c in df.columns if c.strip().lower() in ("metrics/precision(b)", "precision")), None)
-    rec_col     = next((c for c in df.columns if c.strip().lower() in ("metrics/recall(b)", "recall")), None)
+
+    map50_col   = _find_col(df, ["mAP50"], exclude="95")
+    map5095_col = _find_col(df, ["mAP50-95", "mAP50.95"])
+    prec_col    = _find_col(df, ["precision", "metrics/precision"])
+    rec_col     = _find_col(df, ["recall", "metrics/recall"])
 
     if map50_col is None:
+        print(f"  ⚠  No mAP50 column found in {csv_path}. Columns: {list(df.columns)}")
         return {}
 
-    best_row = df.loc[df[map50_col].idxmax()]
+    col = df[map50_col]
+    if col.isna().all():
+        print(f"  ⚠  mAP50 column is all NaN in {csv_path}")
+        return {}
+    best_idx = col.idxmax()
+    best_row = df.loc[best_idx]
     out = {
         "best_epoch"  : int(best_row.get("epoch", -1)),
         "precision"   : float(best_row[prec_col])    if prec_col    else np.nan,
@@ -293,7 +331,7 @@ def run():
     # ── Aggregate & save ──────────────────────
     df = pd.DataFrame(all_results)
     csv_path = summary_dir / "all_fold_metrics.csv"
-    df.to_csv(csv_path, index=False)
+    df.to_csv(csv_path, index=False, na_rep="N/A")
     print(f"\n✔  All metrics saved → {csv_path}")
 
     # ── Summary table ──
@@ -353,21 +391,30 @@ def run():
 
     stats_df = pd.DataFrame(stats_rows)
     stats_csv = summary_dir / "statistical_comparison.csv"
-    stats_df.to_csv(stats_csv, index=False)
+    stats_df.to_csv(stats_csv, index=False, na_rep="N/A")
     print(f"\n✔  Statistical comparison saved → {stats_csv}")
 
     # Console output
+    n_valid = sum(1 for m in metrics_list
+                  if len(df[df.strategy == "A"][m].dropna()) >= 2
+                  and len(df[df.strategy == "B"][m].dropna()) >= 2)
+    if n_valid == 0:
+        print("\n⚠  No valid metric values for paired comparison (all folds have NaN).")
+
     print("\n" + "=" * 75)
     print(f"  STATISTICAL COMPARISON: Strategy B vs A ({N_FOLDS}-fold paired)")
     print("=" * 75)
+    def _fmt_num(v, fmt):
+        return fmt.format(v) if isinstance(v, (int, float)) and not np.isnan(v) else "N/A"
+
     for _, r in stats_df.iterrows():
         ci_str = f"[{r['CI_lower']:.3f}, {r['CI_upper']:.3f}]" if not np.isnan(r['CI_lower']) else "N/A"
-        sig = "*" if r["t_p_value"] < 0.05 else ""
+        sig = "*" if isinstance(r["t_p_value"], (int, float)) and not np.isnan(r["t_p_value"]) and r["t_p_value"] < 0.05 else ""
         w_p_str = f"{r['wilcoxon_p']:.4f}{'*' if r['wilcoxon_p'] < 0.05 else ''}" if not np.isnan(r['wilcoxon_p']) else "N/A"
         mlabel = metric_labels.get(str(r["metric"]), str(r["metric"]))
-        print(f"  {mlabel:12} | A={r['mean_A']:.3f} | B={r['mean_B']:.3f} | "
-              f"B-A={r['mean_diff_B_minus_A']:+.3f} {ci_str} | t p={r['t_p_value']:.4f}{sig} | "
-              f"d={r['cohen_d']:.2f} | Wilcoxon p={w_p_str}")
+        print(f"  {mlabel:12} | A={_fmt_num(r['mean_A'], '{:.3f}')} | B={_fmt_num(r['mean_B'], '{:.3f}')} | "
+              f"B-A={_fmt_num(r['mean_diff_B_minus_A'], '{:+.3f}')} {ci_str} | t p={_fmt_num(r['t_p_value'], '{:.4f}')}{sig} | "
+              f"d={_fmt_num(r['cohen_d'], '{:.2f}')} | Wilcoxon p={w_p_str}")
     print("  * p < 0.05")
 
     # ── Markdown report ──
@@ -443,24 +490,28 @@ def write_markdown_report(df, stats_df, summary_dir, n_folds):
         lines.append(f"| {lbl} | {a_str} | {b_str} |")
     lines.extend(["", "---", "", "## Statistical Comparison: B vs A", ""])
 
+    def _md_fmt(v, fmt="{:.4f}"):
+        return fmt.format(v) if isinstance(v, (int, float)) and not np.isnan(v) else "N/A"
+
     # Statistical comparison table
     lines.append("| Metric | mean_A | mean_B | B-A (95% CI) | t-test p | Cohen's d | Wilcoxon p |")
     lines.append("|--------|--------|--------|--------------|----------|-----------|-------------|")
     for _, r in stats_df.iterrows():
         lbl = metric_labels.get(r["metric"], r["metric"])
         ci_str = f"[{r['CI_lower']:.3f}, {r['CI_upper']:.3f}]" if not np.isnan(r["CI_lower"]) else "N/A"
-        t_p = f"{r['t_p_value']:.4f}" + ("*" if r["t_p_value"] < 0.05 else "")
-        d_str = f"{r['cohen_d']:.3f}" if not np.isnan(r["cohen_d"]) else "N/A"
-        w_p = f"{r['wilcoxon_p']:.4f}" + ("*" if r["wilcoxon_p"] < 0.05 else "") if not np.isnan(r["wilcoxon_p"]) else "N/A"
-        lines.append(f"| {lbl} | {r['mean_A']:.4f} | {r['mean_B']:.4f} | {r['mean_diff_B_minus_A']:+.4f} ({ci_str}) | {t_p} | {d_str} | {w_p} |")
+        t_p = _md_fmt(r["t_p_value"]) + ("*" if isinstance(r["t_p_value"], (int, float)) and not np.isnan(r["t_p_value"]) and r["t_p_value"] < 0.05 else "")
+        d_str = _md_fmt(r["cohen_d"])
+        w_p = _md_fmt(r["wilcoxon_p"]) + ("*" if not np.isnan(r["wilcoxon_p"]) and r["wilcoxon_p"] < 0.05 else "")
+        lines.append(f"| {lbl} | {_md_fmt(r['mean_A'])} | {_md_fmt(r['mean_B'])} | {_md_fmt(r['mean_diff_B_minus_A'], '{:+.4f}')} ({ci_str}) | {t_p} | {d_str} | {w_p} |")
     lines.extend(["", "* p < 0.05", "", "---", "", "## Interpretation", ""])
 
     for _, r in stats_df.iterrows():
         lbl = metric_labels.get(r["metric"], r["metric"])
-        sig = "significant" if r["t_p_value"] < 0.05 else "not significant"
-        direction = "improves" if r["mean_diff_B_minus_A"] > 0 else "decreases"
+        sig = "significant" if isinstance(r["t_p_value"], (int, float)) and not np.isnan(r["t_p_value"]) and r["t_p_value"] < 0.05 else "not significant"
+        diff_val = r["mean_diff_B_minus_A"]
+        direction = "improves" if not np.isnan(diff_val) and diff_val > 0 else ("decreases" if not np.isnan(diff_val) else "N/A (insufficient data)")
         ci_str = f"[{r['CI_lower']:.3f}, {r['CI_upper']:.3f}]" if not np.isnan(r["CI_lower"]) else "N/A"
-        diff_str = f"{r['mean_diff_B_minus_A']:+.4f}" if not np.isnan(r["mean_diff_B_minus_A"]) else "N/A"
+        diff_str = f"{diff_val:+.4f}" if not np.isnan(diff_val) else "N/A"
         p_str = f"{r['t_p_value']:.4f}" if not np.isnan(r["t_p_value"]) else "N/A"
         lines.append(f"- **{lbl}**: Strategy B {direction} over A by {diff_str} (95% CI {ci_str}) — {sig} (t-test p={p_str})")
 
@@ -496,13 +547,20 @@ def plot_results(df, summary_dir):
     for ax_i, (met, lbl) in enumerate(zip(metrics[:4], metric_lbls[:4])):
         ax = axes[ax_i]
         for strat in ["A", "B"]:
-            sub = df[df.strategy == strat].sort_values("fold")
-            ax.plot(sub["fold"], sub[met], marker="o",
+            sub = df[df.strategy == strat].sort_values("fold").copy()
+            vals = sub[met].values
+            # Replace NaN with 0 for plotting (avoid broken lines); mask fill_between if all NaN
+            vals_plot = np.where(np.isnan(vals), 0.0, vals)
+            ax.plot(sub["fold"], vals_plot, marker="o",
                     color=colors[strat], label=labels[strat], lw=2)
-            ax.fill_between(sub["fold"],
-                            sub[met] - sub[met].std(),
-                            sub[met] + sub[met].std(),
-                            alpha=0.12, color=colors[strat])
+            valid = ~np.isnan(vals)
+            if valid.any():
+                s = np.nanstd(vals)
+                s = 0.0 if np.isnan(s) or s == 0 else s
+                ax.fill_between(sub["fold"],
+                                np.nan_to_num(vals, nan=0) - s,
+                                np.nan_to_num(vals, nan=0) + s,
+                                alpha=0.12, color=colors[strat])
         ax.set_xlabel("Fold"); ax.set_ylabel(lbl)
         ax.set_title(f"{lbl} per fold")
         ax.set_xticks(df["fold"].unique())
@@ -512,11 +570,17 @@ def plot_results(df, summary_dir):
 
     # ── Box-plot comparison (all folds) ──
     ax5 = axes[4]
-    data_a = [df[df.strategy=="A"][m].values for m in metrics]
-    data_b = [df[df.strategy=="B"][m].values for m in metrics]
+    data_a = [df[df.strategy=="A"][m].dropna().values for m in metrics]
+    data_b = [df[df.strategy=="B"][m].dropna().values for m in metrics]
     x = np.arange(len(metrics))
     width = 0.3
     for i, (da, db, lbl) in enumerate(zip(data_a, data_b, metric_lbls)):
+        da = np.asarray(da)
+        db = np.asarray(db)
+        if len(da) == 0:
+            da = np.array([np.nan])
+        if len(db) == 0:
+            db = np.array([np.nan])
         bp_a = ax5.boxplot(da, positions=[x[i]-width/2], widths=width*0.9,
                            patch_artist=True,
                            boxprops=dict(facecolor=colors["A"], alpha=0.7),
@@ -548,7 +612,8 @@ def plot_results(df, summary_dir):
     angles = [n / float(N) * 2 * np.pi for n in range(N)]
     angles += angles[:1]
     for strat in ["A", "B"]:
-        vals = [df[df.strategy==strat][m].mean() for m in met_radar]
+        vals = [float(df[df.strategy==strat][m].mean(skipna=True)) for m in met_radar]
+        vals = [v if not np.isnan(v) else 0.0 for v in vals]
         vals += vals[:1]
         ax6.plot(angles, vals, color=colors[strat], lw=2, label=labels[strat])
         ax6.fill(angles, vals, color=colors[strat], alpha=0.15)
