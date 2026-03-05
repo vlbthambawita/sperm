@@ -60,15 +60,14 @@ from pathlib import Path
 from sklearn.model_selection import KFold
 
 try:
-    from ultralytics import YOLO, settings as yolo_settings
+    from ultralytics import YOLO
 except ImportError:
     sys.exit("❌  ultralytics not found. Run:  pip install ultralytics")
 
 if WANDB:
     try:
         import wandb
-        # Enable built-in Ultralytics ↔ W&B integration
-        yolo_settings.update({"wandb": True})
+        from wandb.integration.ultralytics import add_wandb_callback
     except ImportError:
         print("⚠  wandb not found. Install with: pip install wandb")
         WANDB = False
@@ -315,19 +314,36 @@ def run():
             t0 = time.time()
 
             model = YOLO(YOLO_MODEL)
-            model.train(
-                data    = str(yaml_path),
-                epochs  = EPOCHS,
-                imgsz   = IMG_SIZE,
-                batch   = BATCH_SIZE,
-                device  = DEVICE,
-                workers = WORKERS,
-                project = str(strat_dir / "runs"),
-                name    = run_name,
-                exist_ok= True,
-                verbose = False,
-                seed    = RANDOM_SEED,
-            )
+            if WANDB:
+                with wandb.init(project=WANDB_PROJECT, name=run_name, job_type="train"):
+                    add_wandb_callback(model, enable_model_checkpointing=True)
+                    model.train(
+                        data    = str(yaml_path),
+                        epochs  = EPOCHS,
+                        imgsz   = IMG_SIZE,
+                        batch   = BATCH_SIZE,
+                        device  = DEVICE,
+                        workers = WORKERS,
+                        project = str(strat_dir / "runs"),
+                        name    = run_name,
+                        exist_ok= True,
+                        verbose = False,
+                        seed    = RANDOM_SEED,
+                    )
+            else:
+                model.train(
+                    data    = str(yaml_path),
+                    epochs  = EPOCHS,
+                    imgsz   = IMG_SIZE,
+                    batch   = BATCH_SIZE,
+                    device  = DEVICE,
+                    workers = WORKERS,
+                    project = str(strat_dir / "runs"),
+                    name    = run_name,
+                    exist_ok= True,
+                    verbose = False,
+                    seed    = RANDOM_SEED,
+                )
             elapsed = time.time() - t0
 
             # ── Extract metrics ──

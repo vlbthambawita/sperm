@@ -1,0 +1,136 @@
+diff --git a/yolo/results_report.md b/yolo/results_report.md
+index 2ff46e0..f122689 100644
+--- a/yolo/results_report.md
++++ b/yolo/results_report.md
+@@ -18,6 +18,12 @@ Both strategies share the same fold splits (paired comparison).
+ 
+ ---
+ 
++## Comparison Plots
++
++![Comparison plots](comparison_plots.png)
++
++---
++
+ ## Statistical Comparison: B vs A
+ 
+ | Metric | mean_A | mean_B | B-A (95% CI) | t-test p | Cohen's d | Wilcoxon p |
+diff --git a/yolo/yolo_crossval_compare.py b/yolo/yolo_crossval_compare.py
+index f64a1ca..be23d89 100644
+--- a/yolo/yolo_crossval_compare.py
++++ b/yolo/yolo_crossval_compare.py
+@@ -39,7 +39,7 @@ N_FOLDS       = 5
+ NUM_CLASSES   = 1                        # number of object classes
+ CLASS_NAMES   = ["sperm"]               # list of class names
+ IMG_SIZE      = 640                      # YOLO input resolution
+-EPOCHS        = 50                       # training epochs per fold
++EPOCHS        = 100                       # training epochs per fold
+ BATCH_SIZE    = 16
+ YOLO_MODEL    = "yolo26n.pt"            # base weights (downloads auto)
+                                          # change to yolov8n.pt / yolo11s.pt etc.
+@@ -47,6 +47,8 @@ DEVICE        = "0"                      # "0" for GPU 0, "cpu" for CPU
+ WORKERS       = 4
+ OUTPUT_DIR    = "cv_results"
+ RANDOM_SEED   = 42
++WANDB         = True                      # enable Weights & Biases tracking
++WANDB_PROJECT = "sperm-yolo-cv"           # wandb project name (all runs grouped here)
+ # ─────────────────────────────────────────────────────────────────────
+ 
+ import os, sys, shutil, yaml, random, time
+@@ -62,6 +64,14 @@ try:
+ except ImportError:
+     sys.exit("❌  ultralytics not found. Run:  pip install ultralytics")
+ 
++if WANDB:
++    try:
++        import wandb
++        from wandb.integration.ultralytics import add_wandb_callback
++    except ImportError:
++        print("⚠  wandb not found. Install with: pip install wandb")
++        WANDB = False
++
+ 
+ # ──────────────────────────────────────────────
+ # Utilities
+@@ -222,7 +232,11 @@ def run():
+         sys.exit(f"❌  Only {len(common)} frames found — need at least {N_FOLDS}.")
+ 
+     print(f"✔  {len(common)} frames with both AI & manual annotations found.")
+-    print(f"   Running {N_FOLDS}-fold CV  ×  2 strategies  =  {N_FOLDS*2} YOLO runs\n")
++    print(f"   Running {N_FOLDS}-fold CV  ×  2 strategies  =  {N_FOLDS*2} YOLO runs")
++    if WANDB:
++        print(f"   wandb: logging to project '{WANDB_PROJECT}' (run 'wandb login' if not authenticated)\n")
++    else:
++        print()
+ 
+     stems_arr = np.array(common)
+     kf = KFold(n_splits=N_FOLDS, shuffle=True, random_state=RANDOM_SEED)
+@@ -300,19 +314,36 @@ def run():
+             t0 = time.time()
+ 
+             model = YOLO(YOLO_MODEL)
+-            model.train(
+-                data    = str(yaml_path),
+-                epochs  = EPOCHS,
+-                imgsz   = IMG_SIZE,
+-                batch   = BATCH_SIZE,
+-                device  = DEVICE,
+-                workers = WORKERS,
+-                project = str(strat_dir / "runs"),
+-                name    = run_name,
+-                exist_ok= True,
+-                verbose = False,
+-                seed    = RANDOM_SEED,
+-            )
++            if WANDB:
++                with wandb.init(project=WANDB_PROJECT, name=run_name, job_type="train"):
++                    add_wandb_callback(model, enable_model_checkpointing=True)
++                    model.train(
++                        data    = str(yaml_path),
++                        epochs  = EPOCHS,
++                        imgsz   = IMG_SIZE,
++                        batch   = BATCH_SIZE,
++                        device  = DEVICE,
++                        workers = WORKERS,
++                        project = str(strat_dir / "runs"),
++                        name    = run_name,
++                        exist_ok= True,
++                        verbose = False,
++                        seed    = RANDOM_SEED,
++                    )
++            else:
++                model.train(
++                    data    = str(yaml_path),
++                    epochs  = EPOCHS,
++                    imgsz   = IMG_SIZE,
++                    batch   = BATCH_SIZE,
++                    device  = DEVICE,
++                    workers = WORKERS,
++                    project = str(strat_dir / "runs"),
++                    name    = run_name,
++                    exist_ok= True,
++                    verbose = False,
++                    seed    = RANDOM_SEED,
++                )
+             elapsed = time.time() - t0
+ 
+             # ── Extract metrics ──
+@@ -498,7 +529,17 @@ def write_markdown_report(df, stats_df, summary_dir, n_folds):
+         a_str = f"{a_mean:.4f} ± {a_std:.4f}" if not np.isnan(a_mean) else "N/A"
+         b_str = f"{b_mean:.4f} ± {b_std:.4f}" if not np.isnan(b_mean) else "N/A"
+         lines.append(f"| {lbl} | {a_str} | {b_str} |")
+-    lines.extend(["", "---", "", "## Statistical Comparison: B vs A", ""])
++    lines.extend([
++        "",
++        "## Comparison Plots",
++        "",
++        "![Comparison plots](comparison_plots.png)",
++        "",
++        "---",
++        "",
++        "## Statistical Comparison: B vs A",
++        "",
++    ])
+ 
+     def _md_fmt(v, fmt="{:.4f}"):
+         return fmt.format(v) if isinstance(v, (int, float)) and not np.isnan(v) else "N/A"

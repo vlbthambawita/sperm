@@ -1,0 +1,66 @@
+_wandb:
+    value:
+        cli_version: 0.24.0
+        code_path: code/yolo/yolo_crossval_compare.py
+        e:
+            vcjv1jh4lryi73z2dtq5eouqc6zaz4y7:
+                codePath: yolo/yolo_crossval_compare.py
+                codePathLocal: yolo/yolo_crossval_compare.py
+                cpu_count: 16
+                cpu_count_logical: 32
+                cudaVersion: "12.9"
+                disk:
+                    /:
+                        total: "928915726336"
+                        used: "830279708672"
+                email: vajira@simula.no
+                executable: /home/vajira/anaconda3/envs/pytorch2/bin/python
+                git:
+                    commit: e2973589cc72f92c9289b2ddf96d696932ef0f84
+                    remote: https://github.com/vlbthambawita/sperm.git
+                gpu: NVIDIA GeForce RTX 3090
+                gpu_count: 2
+                gpu_nvidia:
+                    - architecture: Ampere
+                      cudaCores: 10496
+                      memoryTotal: "25769803776"
+                      name: NVIDIA GeForce RTX 3090
+                      uuid: GPU-3a948725-4e24-e944-ef23-f3283fce3c00
+                    - architecture: Ampere
+                      cudaCores: 8704
+                      memoryTotal: "10737418240"
+                      name: NVIDIA GeForce RTX 3080
+                      uuid: GPU-5c545b55-2e3d-56e0-b11d-6593131d2217
+                host: mimir
+                memory:
+                    total: "67322912768"
+                os: Linux-5.15.0-139-generic-x86_64-with-glibc2.31
+                program: /work/vajira/DL2026/sperm/yolo/yolo_crossval_compare.py
+                python: CPython 3.10.11
+                root: /work/vajira/DL2026/sperm
+                startedAt: "2026-03-05T12:55:18.643860Z"
+                writerId: vcjv1jh4lryi73z2dtq5eouqc6zaz4y7
+        m: []
+        python_version: 3.10.11
+        t:
+            "1":
+                - 1
+                - 5
+                - 41
+                - 53
+                - 105
+            "2":
+                - 1
+                - 5
+                - 41
+                - 53
+                - 105
+            "3":
+                - 2
+                - 13
+            "4": 3.10.11
+            "5": 0.24.0
+            "8":
+                - 2
+            "12": 0.24.0
+            "13": linux-x86_64
