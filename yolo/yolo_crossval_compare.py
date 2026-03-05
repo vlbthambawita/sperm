@@ -8,8 +8,8 @@
 ║  Strategy B: Train on 4 folds human-annotated → Validate on 1 fold  ║
 ║              human-annotated  (standard manual CV)                   ║
 ║                                                                      ║
-║  Both strategies share the SAME fold splits so results are           ║
-║  directly comparable.                                                ║
+║  Both strategies share the SAME image folds so results are           ║
+║  directly comparable (folds use frames with BOTH AI & manual labels).║
 ╚══════════════════════════════════════════════════════════════════════╝
 
 Folder layout expected:
@@ -31,15 +31,15 @@ Output:
 """
 
 # ─────────────────────── USER CONFIG ────────────────────────────────
-IMAGES_DIR    = "/work/vajira/DATA/SPERM_data_2025/clean_100_frames_yolo_ready/all/images"         # directory with image files
-AI_LABELS_DIR = "/work/vajira/DATA/SPERM_data_2025/manually_annotated_100_frames_v0.3/all/labels"      # AI annotation .txt files
-MAN_LABELS_DIR= "/work/vajira/DATA/SPERM_data_2025/clean_100_frames_yolo_ready/all/labels"  # manual annotation .txt files
+IMAGES_DIR    = "/work/vajira/DATA/SPERM_data_2025/clean_100_frames_yolo_ready/all/images"                # directory with image files
+AI_LABELS_DIR = "/work/vajira/DATA/SPERM_data_2025/clean_100_frames_yolo_ready/all/labels"                # AI annotation .txt files
+MAN_LABELS_DIR= "/work/vajira/DATA/SPERM_data_2025/manually_annotated_100_frames_v1.0/all/labels"         # manual annotation .txt files
 
 N_FOLDS       = 5
 NUM_CLASSES   = 1                        # number of object classes
 CLASS_NAMES   = ["sperm"]               # list of class names
 IMG_SIZE      = 640                      # YOLO input resolution
-EPOCHS        = 2                       # training epochs per fold
+EPOCHS        = 50                       # training epochs per fold
 BATCH_SIZE    = 16
 YOLO_MODEL    = "yolo26n.pt"            # base weights (downloads auto)
                                          # change to yolov8n.pt / yolo11s.pt etc.
@@ -268,8 +268,8 @@ def run():
             elapsed = time.time() - t0
 
             # ── Extract metrics ──
-            # Ultralytics saves under runs/detect/<project>/<name>
-            run_dir = Path("runs/detect") / strat_dir / "runs" / run_name
+            # With project=strat_dir/'runs', Ultralytics saves under strat_dir/'runs'/run_name
+            run_dir = strat_dir / "runs" / run_name
             metrics = extract_metrics(run_dir)
             default_metrics = {"precision": np.nan, "recall": np.nan, "mAP50": np.nan, "mAP50_95": np.nan, "best_epoch": -1}
 
