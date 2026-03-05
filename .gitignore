@@ -9,6 +9,9 @@ secrets.json
 yolo/*.pt
 yolo/cv_results/
 yolo/runs/
+runs/
+cv_results/
+*.pt
 
 # API Keys and sensitive data
 run.sh
