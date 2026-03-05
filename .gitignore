@@ -73,12 +73,12 @@ data/
 datasets/
 *.jpg
 *.jpeg
-*.png
 *.txt
 *.bmp
 *.tif
 *.tiff
 *.webp
+*.pt
 
 # Jupyter Notebook
 .ipynb_checkpoints
