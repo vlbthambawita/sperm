@@ -39,7 +39,7 @@ N_FOLDS       = 5
 NUM_CLASSES   = 1                        # number of object classes
 CLASS_NAMES   = ["sperm"]               # list of class names
 IMG_SIZE      = 640                      # YOLO input resolution
-EPOCHS        = 1                       # training epochs per fold
+EPOCHS        = 50                       # training epochs per fold
 BATCH_SIZE    = 16
 YOLO_MODEL    = "yolo26n.pt"            # base weights (downloads auto)
                                          # change to yolov8n.pt / yolo11s.pt etc.
@@ -139,16 +139,26 @@ def _find_col(df, patterns, exclude=None):
 def _locate_results_csv(results_dir):
     """Locate results.csv - check primary path and common Ultralytics layout variants."""
     base = Path(results_dir)
+    cwd = Path.cwd()
     candidates = [
         base / "results.csv",
         base / "train" / "results.csv",
+        # Ultralytics nests project under runs/detect/ or runs/train/
+        cwd / "runs" / "detect" / base / "results.csv",
+        cwd / "runs" / "train" / base / "results.csv",
     ]
     for p in candidates:
         if p.exists():
             return p
     # Fallback: recursive search under results_dir
-    for p in base.rglob("results.csv"):
-        return p
+    if base.exists():
+        for p in base.rglob("results.csv"):
+            return p
+    # Also search under cwd/runs/
+    runs_dir = cwd / "runs"
+    if runs_dir.exists():
+        for p in runs_dir.rglob("results.csv"):
+            return p
     return None
 
 
