@@ -24,8 +24,8 @@ warnings.filterwarnings("ignore")
 # ─────────────────────────────────────────────
 # CONFIG — edit these paths
 # ─────────────────────────────────────────────
-AI_DIR     = "/work/vajira/DATA/SPERM_data_2025/manually_annotated_100_frames_v1.0/all/labels"        # folder with AI .txt files
-MANUAL_DIR = "/work/vajira/DATA/SPERM_data_2025/clean_100_frames_yolo_ready/all/labels"    # folder with manual .txt files
+AI_DIR     =  "/work/vajira/DATA/SPERM_data_2025/clean_100_frames_yolo_ready/all/labels"      # folder with AI .txt files
+MANUAL_DIR =   "/work/vajira/DATA/SPERM_data_2025/manually_annotated_100_frames_v1.0/all/labels"   # folder with manual .txt files
 IMAGES_DIR = "/work/vajira/DATA/SPERM_data_2025/clean_100_frames_yolo_ready/all/images"                    # folder with images (optional; if None, uses IMG_W/IMG_H fallback)
 IOU_THRESHOLD = 0.5                  # match threshold
 IMG_W, IMG_H  = 1920, 1080          # fallback pixel dimensions (used when IMAGES_DIR is None)
